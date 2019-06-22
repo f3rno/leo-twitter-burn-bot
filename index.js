@@ -1,5 +1,7 @@
 'use strict'
 
+process.env.DEBUG = '*'
+
 require('dotenv').config()
 
 const Request = require('request-promise')
@@ -11,6 +13,7 @@ const LowDB = require('lowdb')
 const Twitter = require('twitter')
 const TweetTemplate = require('./lib/tweet_template')
 
+const EXEC_INTERVAL_MS = 3 * 60 * 60 * 1000
 const LAST_REPORTED_BURN_KEY = 'lastReportedBurn'
 const {
   DB_FILENAME,
@@ -35,55 +38,55 @@ const twitterClient = new Twitter({
 const getLastReportedBurn = () => db.get(LAST_REPORTED_BURN_KEY).value() || +LAST_MANUAL_BURN
 const burnModel = ([ mts, chain, tx, amount ]) => ({ mts, chain, tx, amount })
 
-Request('https://api-pub.bitfinex.com/v2/leo/burn/hist').then(res => {
-  let burns
-
-  try {
-    burns = JSON.parse(res)
-  } catch (e) {
-    throw new Error(`error parsing API response: ${res}`)
-  }
-
-  const lastBurnMTS = getLastReportedBurn()
-  const burnsSinceLastReport = burns
-    .filter(b => b[0] > lastBurnMTS)
-    .map(burnModel)
-
-
-  burnsSinceLastReport.sort((a, b) => a.mts - b.mts)
-
-  return { burnsSinceLastReport }
-}).then(data => {
-  return rest.ticker('tLEOUSD').then(ticker => ({ ...data, ticker }))
-}).then(data => {
-  return Request('https://api-pub.bitfinex.com/v2/stats1/leo.burn.supply:1d:val/last').then(res => {
-    let lastBalance
+const exec = () => {
+  Request('https://api-pub.bitfinex.com/v2/leo/burn/hist').then(res => {
+    let burns
 
     try {
-      lastBalance = JSON.parse(res)
+      burns = JSON.parse(res)
     } catch (e) {
       throw new Error(`error parsing API response: ${res}`)
     }
 
-    return { ...data, lastBalance: lastBalance[1] }
-  })
-}).then(({ burnsSinceLastReport, lastBalance, ticker }) => {
-  const { lastPrice } = ticker.toJS()
+    const lastBurnMTS = getLastReportedBurn()
+    const burnsSinceLastReport = burns
+      .filter(b => b[0] > lastBurnMTS)
+      .map(burnModel)
 
-  return PI.forEachSeries(burnsSinceLastReport, (burn) => {
-    const tweetText = TweetTemplate(burn, lastPrice, lastBalance)
 
-    console.log(tweetText)
+    burnsSinceLastReport.sort((a, b) => a.mts - b.mts)
 
-    /*
-    return twitterClient.post('statuses/update', {
-      status: tweetText
-    }).then(() => {
-      debug('tweeted: %s', tweetText)
-      db.set(LAST_REPORTED_BURN_KEY, burn.mts).write()
+    return { burnsSinceLastReport }
+  }).then(data => {
+    return rest.ticker('tLEOUSD').then(ticker => ({ ...data, ticker }))
+  }).then(data => {
+    return Request('https://api-pub.bitfinex.com/v2/stats1/leo.burn.supply:1d:val/last').then(res => {
+      let lastBalance
+
+      try {
+        lastBalance = JSON.parse(res)
+      } catch (e) {
+        throw new Error(`error parsing API response: ${res}`)
+      }
+
+      return { ...data, lastBalance: lastBalance[1] }
     })
-    */
+  }).then(({ burnsSinceLastReport, lastBalance, ticker }) => {
+    const { lastPrice } = ticker.toJS()
+
+    return PI.forEachSeries(burnsSinceLastReport, (burn) => {
+      const tweetText = TweetTemplate(burn, lastPrice, lastBalance)
+
+      return twitterClient.post('statuses/update', {
+        status: tweetText
+      }).then(() => {
+        debug('tweeted: %s', tweetText)
+        db.set(LAST_REPORTED_BURN_KEY, burn.mts).write()
+      })
+    })
+  }).catch(e => {
+    debug('error: %s', e.stack)
   })
-}).catch(e => {
-  debug('error: %s', e.stack)
-})
+}
+
+setInterval(exec, EXEC_INTERVAL_MS)

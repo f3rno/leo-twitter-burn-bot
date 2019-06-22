@@ -4,6 +4,9 @@
   "private": true,
   "description": "LEO Burn Twitter Reporting Bot",
   "author": "Cris Mihalache <me@f3rno.com>",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "bfx-api-node-rest": "^1.1.1",
     "debug": "^4.1.1",
@@ -13,6 +16,5 @@
     "p-iteration": "^1.1.8",
     "request-promise": "^4.2.4",
     "twitter": "^1.7.1"
-  },
-  "scripts": {}
+  }
 }

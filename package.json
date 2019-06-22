@@ -1,0 +1,18 @@
+{
+  "name": "leo-burn-twitter-bot",
+  "version": "0.0.1",
+  "private": true,
+  "description": "LEO Burn Twitter Reporting Bot",
+  "author": "Cris Mihalache <me@f3rno.com>",
+  "dependencies": {
+    "bfx-api-node-rest": "^1.1.1",
+    "debug": "^4.1.1",
+    "dotenv": "^8.0.0",
+    "lodash": "^4.17.11",
+    "lowdb": "^1.0.0",
+    "p-iteration": "^1.1.8",
+    "request-promise": "^4.2.4",
+    "twitter": "^1.7.1"
+  },
+  "scripts": {}
+}
